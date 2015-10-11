@@ -8,6 +8,7 @@ import urllib, urllib2, json, requests
 from timeout import timeout
 import keyring
 import sys
+import speech_recognition as sr
 
 # audio_cortex merge
 import pyaudio
@@ -141,26 +142,10 @@ def processInput(s):
 		except:
 			language = 'en'
 			rsp = 'Language services not accessible at this time'
-	elif "weather" in s:
-		result = pywapi.get_weather_from_noaa('KRDU') # RDU
-		rsp = 'It is currently ' + str(int(float(result['temp_f']))) + ' degrees and ' + result['weather']
-	elif ("i doing" in s) or (("to do" in s) and ("have" in s or "need" in s)):
-		if "tomorrow" in s or "week" in s or "next" in s:
-			rsp = getTasksToday(1)
-			print "Got response " + rsp
-		else:
-			rsp = getTasksToday(0)
-			print "Got response " + rsp
 	elif "play" in s:
 		rsp = playMusic(s)
 	elif "music" in s:
-		if "stop" in s:
-			os.system('pkill vlc')
-		elif "cancel" in s:
-			os.system('pkill vlc')
-		elif "kill" in s:
-			os.system('pkill vlc')
-		elif "close" in s:
+		if any(["stop", "cancel", "kill", "close"] in s:
 			os.system('pkill vlc')
 	elif "what is the" in s or "what's the" in s:	
 		rsp = wolframLookUp(s)
@@ -204,7 +189,7 @@ def processInput(s):
 			except:
 				rsp = "I am sorry, I can not access that information."
 	elif "shut" in s and "down" in s:
-		saySomething("Shutting the computer down","en")
+		saySomething("Shutting the computer down")
 		os.system("sudo shutdown now &")
 	else:
 		rsp = getAIresponse(s)
@@ -251,7 +236,7 @@ def listenToSurroundings(threadName):
         print "Volume threshold set at %2.1f" % volumeThreshold 
         lastInterupt = datetime.datetime.now()
         
-        while (1):
+        while True:
             if config.gettingStillImages and config.gettingStillAudio:
                 pass
             elif config.gettingVisualInput:
@@ -286,14 +271,38 @@ def listenToSurroundings(threadName):
     print traceback.format_exc()
 
 def getUsersVoice(speakingTime):
-    os.system("mpg123 -a hw:1 sounds/blip.wav > /dev/null 2>&1 ")
-    os.system("arecord -D plughw:0 -f cd -t wav -d %d -r 16000 | flac - -f --best --sample-rate 16000 -o out.flac> /dev/null 2>&1 " % speakingTime)
-    os.system("mpg123 -a hw:1 sounds/elevbell1.wav > /dev/null 2>&1 ")
-    os.system("./parseVoiceText.sh ")
-    output = ""
-    with open('txt.out','r') as f:
-        output = f.readline()
-    print "output:"
-    print output[1:-2]
-    theOutput = output[1:-2]
-    return theOutput
+        os.system("aplay sounds/blip.wav > /dev/null 2>&1 ")
+        os.system("arecord -D plughw:1,0 -f cd -d %d out.wav" % speakingTime)
+        os.system("aplay sounds/elevbell1.wav > /dev/null 2>&1")
+        #os.system("parseVoiceText.sh")
+
+        # obtain path to "test.wav" in the same folder as this script
+        from os import path
+        WAV_FILE = path.join(path.dirname(path.realpath(__file__)), "out.wav")
+
+        # use "out.wav" as the audio source
+        r = sr.Recognizer()
+        with sr.WavFile(WAV_FILE) as source:
+                audio = r.record(source) # read the entire WAV file
+
+        # recognize speech using Google Speech Recognition
+        try:
+                # for testing purposes, we're just using the default API key
+                # to use another API key, use `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGNITION_API_KEY")`
+                # instead of `r.recognize_google(audio)`
+                output = r.recognize_google(audio)
+                print("Google Speech Recognition thinks you said " + output)
+        except sr.UnknownValueError:
+                output = 'empty'
+                print("Google Speech Recognition could not understand audio")
+        except sr.RequestError as e:
+                output = 'empty'
+                print("Could not request results from Google Speech Recognition service; {0}".format(e))
+    
+        #output = ""
+        #with open('txt.out','r') as f:
+        #        output = f.readline()
+        print "output:"
+        print output#[1:-2]
+        theOutput = output#[1:-2]
+        return theOutput

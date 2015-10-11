@@ -40,7 +40,7 @@ debugging = False
 keyring.set_password('wolfram','app_id','L6PEJ5-34R5XV82VU')
 #keyring.set_password('msft_azure','api_secret','XX')
 #keyring.set_password('msft_azure','api_client','XX')
-#keyring.set_password('google','api_secret','XX')
+keyring.set_password('google','api_secret','2SCR7RT1wyJkeLEVB8FdfGvz')
 
 
 
