@@ -2,14 +2,17 @@ import config
 import wolframalpha, wikipedia
 from bot_chatter import getAIresponse
 from mouth_function import saySomething
-from frontal_lobe import getTasks
-import audio_cortex 
 import re
 import os
 import urllib, urllib2, json, requests
 from timeout import timeout
 import keyring
 import sys
+
+# audio_cortex merge
+import pyaudio
+import audioop
+import time, datetime
  
 # Translate text with Microsoft Translation
 def translateText(s,language): 
@@ -192,18 +195,6 @@ def processInput(s):
 				rsp = wikipediaLookUp(s,2)
 			except:
 				rsp = "I am sorry, I can not access that information."
-	elif "who am i" in s or "who do you see" in s or "do you recognize" in s or "do you know me" in s:
-		config.lookForFaces = 1
-		rsp = "Let me see you and think."
-		config.gettingStillImages = 0
-	elif "off" in s and "light" in s:
-		os.system("echo 'rf a1 off' | nc localhost 1099")
-		os.system("echo 'rf c1 off' | nc localhost 1099")
-		rsp = "Turning off the lights"
-	elif "on" in s and "light" in s:
-		os.system("echo 'rf a1 on' | nc localhost 1099")
-		os.system("echo 'rf c1 on' | nc localhost 1099")
-		rsp = "Turning on the lights"
 	elif "who" in s:
 		try:
 			rsp = wikipediaLookUp(s,1)
@@ -222,4 +213,87 @@ def processInput(s):
 	pattern = re.compile("([^a-zA-Z\d\s:,.']|_)+")
 	rsp = re.sub(pattern, '', rsp)
 	print rsp + " in " + language
-	saySomething(rsp,language)		
+	saySomething(rsp)		
+
+
+# audio_cortex merge
+
+def getUserPermission(question):
+    answer = 0
+    saySomething(question)
+    response = getUsersVoice(2)
+    if "yes" in response or "sure" in response or "okay" in response:
+        answer = 1
+    return answer
+	
+def listenToSurroundings(threadName):
+    try:
+        print "Started listening on thread %s" % threadName
+        chunk = 1024
+        
+        if config.debugging:
+            rms = []
+            for i in range(0,10):
+                p = pyaudio.PyAudio()
+                stream = p.open(format=pyaudio.paInt16,channels=1,rate=44100,input=True,frames_per_buffer=chunk)
+                data = stream.read(chunk)
+                rmsTemp = audioop.rms(data,2)
+                print rmsTemp
+                rms.append(rmsTemp)
+                rmsMean = numpy.mean(rms)
+                rmsStd = numpy.std(rms)
+                print rms
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+        
+        volumeThreshold = 1050 # set after running the previous commands and looking at vtput
+        print "Volume threshold set at %2.1f" % volumeThreshold 
+        lastInterupt = datetime.datetime.now()
+        
+        while (1):
+            if config.gettingStillImages and config.gettingStillAudio:
+                pass
+            elif config.gettingVisualInput:
+                time.sleep(5)
+            else:
+                print "Starting listening stream"
+                lastInterupt = datetime.datetime.now()
+                config.gettingStillAudio = 0
+                rmsTemp = 0
+                p = pyaudio.PyAudio()
+                stream = p.open(format=pyaudio.paInt16,channels=1,rate=16000,input=True,frames_per_buffer=chunk)
+                # listen to surroundings
+                while rmsTemp < volumeThreshold and not config.gettingVisualInput:
+                    data = stream.read(chunk)
+                    rmsTemp = audioop.rms(data,2)
+                    timeDifference = datetime.datetime.now() - lastInterupt
+                    if timeDifference.total_seconds() > config.audioHangout:
+                        config.gettingStillAudio = 1
+                    if config.gettingStillAudio and config.gettingStillImages:
+                        break
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+                if not config.gettingVisualInput and not config.gettingStillAudio:
+                    config.timeTimeout = 0 # reset timeout
+                    config.gettingVoiceInput = 1
+                    output = getUsersVoice(5)
+                    processInput(output)
+                    config.gettingVoiceInput = 0
+    except:
+        import traceback
+    print traceback.format_exc()
+
+def getUsersVoice(speakingTime):
+    os.system("mpg123 -a hw:1 sounds/blip.wav > /dev/null 2>&1 ")
+    os.system("arecord -D plughw:0 -f cd -t wav -d %d -r 16000 | flac - -f --best --sample-rate 16000 -o out.flac> /dev/null 2>&1 " % speakingTime)
+    os.system("mpg123 -a hw:1 sounds/elevbell1.wav > /dev/null 2>&1 ")
+    os.system("./parseVoiceText.sh ")
+    output = ""
+    with open('txt.out','r') as f:
+        output = f.readline()
+    print "output:"
+    print output[1:-2]
+    theOutput = output[1:-2]
+    return theOutput
