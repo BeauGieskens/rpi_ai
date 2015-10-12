@@ -8,7 +8,7 @@ def getAIresponse(s):
 
 def getAIresponse2(s):
 	factory = ChatterBotFactory()
-	bot2 = factory.create(ChatterBotType.CLEVERBOT)
-	bot2session = bot2.create_session()
-	response = bot2session.think(s)
+	bot = factory.create(ChatterBotType.CLEVERBOT)
+	bot_session = bot.create_session()
+	response = bot_session.think(s)
 	return response

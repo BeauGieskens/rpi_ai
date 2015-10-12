@@ -8,7 +8,8 @@ def saySomething(text):
     print text
     sentences = ""
     text = re.sub('[!;]','.',text)
+    text = re.sub('''['"]''','',text)
     for sentence in text.split('.'):
         if len(sentence) > 0:
-            os.system("espeak '" + sentence + "' -v en/en-us")
+            os.system("espeak '" + sentence + "' -v en/en-us 2>/dev/null")
 
